@@ -1,77 +1,75 @@
 <?php
+// Configuración de base de datos
+$servername = "localhost";
+$username = "root";
+$password = "";
+$dbname = "task_db";
+$table = "random_messages";
 
-    $servername= "localhost";
-    $username = "root";
-    $password = "";
-    $dbname = "task_db";
-    $table = "random_messages";
+try {
+    $conn = new PDO("mysql:host=$servername;dbname=$dbname;charset=utf8", $username, $password);
+    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    $action = $_POST["action"];
+    $action = $_POST["action"] ?? '';
 
-    $conn = new mysqli($servername, $username, $password, $dbname);
+    switch ($action) {
+        case "GET_ALL":
+            $stmt = $conn->prepare("SELECT id_mensaje, mensaje FROM $table");
+            $stmt->execute();
+            $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode(["status" => "success", "data" => $messages]);
+            break;
 
-    if($conn->connect_error){
-        die("Connection failed: " . $conn->connect_error);
-        return;
-    }
+        case "GET_RANDOM":
+            $stmt = $conn->prepare("SELECT id_mensaje, mensaje FROM $table ORDER BY RAND() LIMIT 1");
+            $stmt->execute();
+            $message = $stmt->fetch(PDO::FETCH_ASSOC);
+            echo json_encode(["status" => "success", "data" => $message]);
+            break;
 
-    if("GET_RANDOM" == $action){
-        $result = $conn->query("SELECT id_mensaje, mensaje FROM $table");
-        $messages = array();
-
-        if($result->num_rows > 0){
-            while($row = $result->fetch_assoc()){
-                array_push($messages, $row);
+        case "ADD_MSG":
+            $mensaje = $_POST["mensaje"] ?? '';
+            if ($mensaje) {
+                $stmt = $conn->prepare("INSERT INTO $table (mensaje) VALUES (:mensaje)");
+                $stmt->bindParam(':mensaje', $mensaje);
+                $stmt->execute();
+                echo json_encode(["status" => "success", "message" => "Message added"]);
+            } else {
+                echo json_encode(["status" => "error", "message" => "Message is required"]);
             }
-            echo json_encode($messages);
-        }else{
-            echo "error";
-        }
-        $conn->close();
-        return;
-        
-    }
+            break;
 
-    if("GET_ALL" == $action){
-        $result = $conn->query("SELECT id_mensaje, mensaje FROM $table ORDER BY RAND() LIMIT 1");
-        $messages = array();
-
-        if($result->num_rows > 0){
-            while($row = $result->fetch_assoc()){
-                array_push($messages, $row);
+        case "DELETE_MSG":
+            $id_mensaje = $_POST["id_mensaje"] ?? 0;
+            if ($id_mensaje) {
+                $stmt = $conn->prepare("DELETE FROM $table WHERE id_mensaje = :id_mensaje");
+                $stmt->bindParam(':id_mensaje', $id_mensaje, PDO::PARAM_INT);
+                $stmt->execute();
+                echo json_encode(["status" => "success", "message" => "Message deleted"]);
+            } else {
+                echo json_encode(["status" => "error", "message" => "ID is required"]);
             }
-            echo json_encode($messages);
-        }else{
-            echo "error";
-        }
-        $conn->close();
-        return;
-        
-    }
+            break;
 
-    if("ADD_MSG" == $action){
-        $message = $_POST["message"];
-        $result = $conn->query("INSERT INTO $table (mensaje) VALUES ('$message')");
-        echo "Message added";
-        $conn->close();
-        return;
-    }
+        case "UPDATE_MSG":
+            $id_mensaje = $_POST["id_mensaje"] ?? 0;
+            $mensaje = $_POST["mensaje"] ?? '';
+            if ($id_mensaje && $mensaje) {
+                $stmt = $conn->prepare("UPDATE $table SET mensaje = :mensaje WHERE id_mensaje = :id_mensaje");
+                $stmt->bindParam(':id_mensaje', $id_mensaje, PDO::PARAM_INT);
+                $stmt->bindParam(':mensaje', $mensaje);
+                $stmt->execute();
+                echo json_encode(["status" => "success", "message" => "Message updated"]);
+            } else {
+                echo json_encode(["status" => "error", "message" => "ID and message are required"]);
+            }
+            break;
 
-    if("DELETE_MSG" == $action){
-        $id = $_POST["id"];
-        $result = $conn->query("DELETE FROM $table WHERE id_mensaje = $id");
-        echo "Message deleted";
-        $conn->close();
-        return;
+        default:
+            echo json_encode(["status" => "error", "message" => "Invalid action"]);
+            break;
     }
-
-    if("UPDATE_MSG" == $action){
-        $id = $_POST["id"];
-        $message = $_POST["message"];
-        $result = $conn->query("UPDATE $table SET mensaje = '$message' WHERE id_mensaje = $id");
-        echo "Message updated";
-        $conn->close();
-        return;
-    }
-
+} catch (PDOException $e) {
+    echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+}
 ?>
